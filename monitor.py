@@ -23,7 +23,15 @@ if os.path.exists("hashes.json"):
 updated = False
 
 for site in sites:
-    r = requests.get(site["url"], timeout=20)
+    r = requests.get(
+        site["url"],
+        timeout=20,
+        headers={"User-Agent": "Mozilla/5.0"}
+    )
+    r.raise_for_status()
+except Exception as e:
+    print(f"Errore su {site['url']}: {e}")
+    continue
     current_hash = get_hash(r.text)
 
     if site["url"] not in hashes:
