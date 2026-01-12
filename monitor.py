@@ -23,6 +23,7 @@ if os.path.exists("hashes.json"):
 updated = False
 
 for site in sites:
+   try:
     r = requests.get(
         site["url"],
         timeout=20,
