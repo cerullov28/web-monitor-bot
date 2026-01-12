@@ -4,12 +4,12 @@ import hashlib
 import os
 from telegram import Bot
 
-TOKEN = os.environ["8208166634:AAG_QnIMtIdbhqqakl68Iv6g4PIxwz3QKJA"]
-CHAT_ID = os.environ["881859415"]
+TOKEN = os.environ["BOT_TOKEN"]
+CHAT_ID = os.environ["CHAT_ID"]
 
 bot = Bot(token=TOKEN)
 
-def page_hash(text):
+def get_hash(text):
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 with open("sites.json") as f:
@@ -20,20 +20,24 @@ if os.path.exists("hashes.json"):
     with open("hashes.json") as f:
         hashes = json.load(f)
 
+updated = False
+
 for site in sites:
     r = requests.get(site["url"], timeout=20)
-    current = page_hash(r.text)
+    current_hash = get_hash(r.text)
 
     if site["url"] not in hashes:
-        hashes[site["url"]] = current
+        hashes[site["url"]] = current_hash
         continue
 
-    if hashes[site["url"]] != current:
+    if hashes[site["url"]] != current_hash:
         bot.send_message(
             chat_id=CHAT_ID,
-            text=f"🔔 Pagina aggiornata!\n{site['name']}\n{site['url']}"
+            text=f"🔔 Aggiornamento rilevato!\n{site['name']}\n{site['url']}"
         )
-        hashes[site["url"]] = current
+        hashes[site["url"]] = current_hash
+        updated = True
 
 with open("hashes.json", "w") as f:
     json.dump(hashes, f)
+
