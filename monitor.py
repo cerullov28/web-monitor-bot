@@ -3,7 +3,7 @@ import json
 import hashlib
 import os
 from telegram import Bot
-
+print("BOT AVVIATO")
 TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
