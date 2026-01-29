@@ -1,13 +1,16 @@
-[
-  {
-    "name": "ADISUR Notizie",
-    "url": "https://www.adisurcampania.it/notizie",
-    "type": "html",       // perché i PDF sono link nella pagina HTML
-    "filter": ".pdf"      // opzionale, indica che ci interessano solo link PDF
-  },
-  {
-    "name": "UNICampania Avvisi",
-    "url": "https://www.unicampania.it/index.php/studenti/avvisi",
-    "type": "html"
-  }
-]
+{
+  "sites": [
+    {
+      "name": "ADISUR Notizie",
+      "url": "https://www.adisurcampania.it/notizie",
+      "type": "html",
+      "keywords": [".pdf"]
+    },
+    {
+      "name": "UNICampania Avvisi",
+      "url": "https://www.unicampania.it/index.php/studenti/avvisi",
+      "type": "html",
+      "keywords": []
+    },
+  ]
+}
