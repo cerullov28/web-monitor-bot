@@ -23,7 +23,7 @@ def now_str() -> str:
 with open("sites.json", "r", encoding="utf-8") as f:
     sites = json.load(f)["sites"]
 
-# === CARICO HASH PRECEDENTI (SE ESISTONO) ===
+# === CARICO HASH PRECEDENTI ===
 hashes = {}
 if os.path.exists("hashes.json"):
     try:
@@ -31,6 +31,18 @@ if os.path.exists("hashes.json"):
             hashes = json.load(f)
     except Exception:
         hashes = {}
+
+# === HEADERS "UMANI" ===
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9",
+    "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Connection": "keep-alive",
+}
 
 # === CICLO PRINCIPALE ===
 for site in sites:
@@ -40,21 +52,19 @@ for site in sites:
     try:
         response = requests.get(
             url,
-            timeout=25,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; WebMonitorBot/1.0)"
-            }
+            headers=HEADERS,
+            timeout=30,
+            allow_redirects=True
         )
         response.raise_for_status()
         content = response.text
     except Exception as e:
-        # NON crasha mai: logga e passa oltre
         print(f"[{now_str()}] Errore su {url}: {e}")
         continue
 
     current_hash = page_hash(content)
 
-    # Primo avvio: salva e NON notifica
+    # Primo avvio
     if url not in hashes:
         hashes[url] = current_hash
         print(f"[{now_str()}] Inizializzato: {url}")
@@ -77,7 +87,7 @@ for site in sites:
 
         hashes[url] = current_hash
 
-# === SALVO HASH AGGIORNATI ===
+# === SALVO HASH ===
 with open("hashes.json", "w", encoding="utf-8") as f:
     json.dump(hashes, f, indent=2, ensure_ascii=False)
 
