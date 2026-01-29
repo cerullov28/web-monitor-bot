@@ -2,14 +2,15 @@ import requests
 import json
 import os
 import hashlib
+import time
 from datetime import datetime
 from telegram import Bot
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 # === CONFIG TELEGRAM ===
-TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
+TOKEN = os.environ["BOT_TOKEN"]
+CHAT_ID = os.environ["CHAT_ID"]
 bot = Bot(token=TOKEN)
 
 # === DATA/ORA FORMATTATA ===
@@ -30,15 +31,15 @@ HEADERS = {
     "Accept-Language": "it-IT,it;q=0.9"
 }
 
-# === CARICA SITI DA MONITORARE ===
+# === SITI DA MONITORARE ===
 try:
     with open("sites.json", "r", encoding="utf-8") as f:
-        sites = json.load(f).get("sites", [])
+        sites = json.load(f)["sites"]
 except Exception as e:
     print(f"[{now()}] Errore caricando sites.json: {e}")
     sites = []
 
-# === CARICA STORICO HASH E PDF ===
+# === STATO HASH E PDF ===
 hashes_file = "hashes.json"
 pdfs_file = "pdfs.json"
 
@@ -63,23 +64,55 @@ for site in sites:
     name = site.get("name", site.get("url"))
     url = site.get("url")
     stype = site.get("type", "html").lower()  # html o pdf
-    keywords = [k.lower() for k in site.get("keywords", [])]  # parole chiave
+    keywords = [k.lower() for k in site.get("keywords", [])]
 
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=40, allow_redirects=True)
-        r.raise_for_status()
-        content = r.text
-    except Exception as e:
-        print(f"[{now()}] Errore su {url}: {e}")
+    # --- RETRY + TIMEOUT LUNGO ---
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=90, allow_redirects=True)
+            r.raise_for_status()
+            content = r.text
+            break  # successo
+        except Exception as e:
+            print(f"[{now()}] Tentativo {attempt+1} fallito per {url}: {e}")
+            time.sleep(5)
+    else:
+        print(f"[{now()}] Errore definitivo su {url}, passo al prossimo sito")
         continue
 
-    # --- PDF ---
+    # --- SOLO PDF PER ADISUR /notizie ---
+    if "adisurcampania.it/notizie" in url:
+        soup = BeautifulSoup(content, "html.parser")
+        pdf_links = [
+            urljoin(url, a['href'])
+            for a in soup.find_all('a', href=True)
+            if a['href'].lower().endswith(".pdf")
+        ]
+        new_pdfs = set(pdf_links) - known_pdfs
+        for pdf in sorted(new_pdfs):
+            filename = pdf.split("/")[-1]
+            message = (
+                f"📄 NUOVO PDF - {name}\n"
+                f"📎 File: {filename}\n"
+                f"🌐 Link: {pdf}\n"
+                f"🕒 Data: {now()}"
+            )
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=message)
+            except Exception as e:
+                print(f"[{now()}] Errore Telegram: {e}")
+            print(f"[{now()}] Notifica PDF inviata: {filename}")
+
+        known_pdfs.update(pdf_links)
+        continue  # salta normale controllo HTML
+
+    # --- PDF GENERICO ---
     if stype == "pdf":
         soup = BeautifulSoup(content, "html.parser")
         found_pdfs = set()
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if href.lower().endswith(".pdf"):
+            if ".pdf" in href.lower():
                 full_url = urljoin(url, href)
                 if keywords and not any(k in full_url.lower() for k in keywords):
                     continue
@@ -110,26 +143,25 @@ for site in sites:
             print(f"[{now()}] Inizializzato HTML: {name} ({url})")
             continue
 
-        if hashes[url] != current_hash:
-            notify = True
-            if keywords:
-                notify = any(k in content.lower() for k in keywords)
+        notify = True
+        if keywords:
+            notify = any(k in content.lower() for k in keywords)
 
-            if notify:
-                message = (
-                    f"🔔 PAGINA HTML AGGIORNATA - {name}\n"
-                    f"🌐 URL: {url}\n"
-                    f"🕒 Data: {now()}"
-                )
-                try:
-                    bot.send_message(chat_id=CHAT_ID, text=message)
-                except Exception as e:
-                    print(f"[{now()}] Errore Telegram: {e}")
-                print(f"[{now()}] Notifica HTML inviata: {name}")
+        if notify and hashes[url] != current_hash:
+            message = (
+                f"🔔 PAGINA HTML AGGIORNATA - {name}\n"
+                f"🌐 URL: {url}\n"
+                f"🕒 Data: {now()}"
+            )
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=message)
+            except Exception as e:
+                print(f"[{now()}] Errore Telegram: {e}")
+            print(f"[{now()}] Notifica HTML inviata: {url}")
 
             hashes[url] = current_hash
 
-# === SALVA STATO ===
+# === SALVO STATO ===
 with open(hashes_file, "w", encoding="utf-8") as f:
     json.dump(hashes, f, indent=2, ensure_ascii=False)
 
