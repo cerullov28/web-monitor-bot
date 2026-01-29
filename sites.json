@@ -1,16 +1,25 @@
 {
   "sites": [
     {
+      "name": "ADISUR Notizie",
+      "type": "html",
+      "url": "http://www.adisurcampania.it/notizie"
+    },
+    {
       "name": "ADISUR Avvisi",
-      "url": "http://www.adisurcampania.it/",
+      "type": "html",
+      "url": "http://www.adisurcampania.it/notizie"
+    },
+    {
+      "name": "ADISUR PDF",
       "type": "pdf",
-      "keywords": []
+      "url": "http://www.adisurcampania.it/notizie",
+      "keywords": ["bando", "graduatoria", "avviso"]
     },
     {
       "name": "UNICampania Avvisi",
-      "url": "https://www.unicampania.it/index.php/studenti/avvisi",
       "type": "html",
-      "keywords": []
+      "url": "https://www.unicampania.it/index.php/studenti/avvisi"
     }
   ]
 }
