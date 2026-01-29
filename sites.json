@@ -1,18 +1,16 @@
 {
   "sites": [
     {
-      "keywords": [
-        ".pdf"
-      ],
-      "name": "ADISUR Notizie",
-      "type": "html",
-      "url": "https://www.adisurcampania.it/notizie"
+      "name": "ADISUR Avvisi",
+      "url": "https://www.adisurcampania.it/",
+      "type": "pdf",
+      "keywords": []
     },
     {
-      "keywords": [],
       "name": "UNICampania Avvisi",
+      "url": "https://www.unicampania.it/index.php/studenti/avvisi",
       "type": "html",
-      "url": "https://www.unicampania.it/index.php/studenti/avvisi"
+      "keywords": []
     }
   ]
 }
