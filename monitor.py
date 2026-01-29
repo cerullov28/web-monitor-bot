@@ -8,9 +8,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 # === CONFIG TELEGRAM ===
-TOKEN = os.environ["BOT_TOKEN"]
-CHAT_ID = os.environ["CHAT_ID"]
-
+TOKEN = os.environ.get("BOT_TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
 bot = Bot(token=TOKEN)
 
 # === DATA/ORA FORMATTATA ===
@@ -31,13 +30,15 @@ HEADERS = {
     "Accept-Language": "it-IT,it;q=0.9"
 }
 
-# === SITI DA MONITORARE CON FILTRI ===
-# "keywords" = lista di parole chiave da cercare (solo PDF o solo HTML)
-# vuoto = tutto
-with open("sites.json", "r", encoding="utf-8") as f:
-    sites = json.load(f)["sites"]
+# === CARICA SITI DA MONITORARE ===
+try:
+    with open("sites.json", "r", encoding="utf-8") as f:
+        sites = json.load(f).get("sites", [])
+except Exception as e:
+    print(f"[{now()}] Errore caricando sites.json: {e}")
+    sites = []
 
-# === STATO HASH E PDF ===
+# === CARICA STORICO HASH E PDF ===
 hashes_file = "hashes.json"
 pdfs_file = "pdfs.json"
 
@@ -65,7 +66,7 @@ for site in sites:
     keywords = [k.lower() for k in site.get("keywords", [])]  # parole chiave
 
     try:
-        r = requests.get(url, headers=HEADERS, timeout=30, allow_redirects=True)
+        r = requests.get(url, headers=HEADERS, timeout=40, allow_redirects=True)
         r.raise_for_status()
         content = r.text
     except Exception as e:
@@ -78,18 +79,17 @@ for site in sites:
         found_pdfs = set()
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if ".pdf" in href.lower():
+            if href.lower().endswith(".pdf"):
                 full_url = urljoin(url, href)
-                if keywords:
-                    if not any(k in full_url.lower() for k in keywords):
-                        continue  # ignoro PDF non rilevanti
+                if keywords and not any(k in full_url.lower() for k in keywords):
+                    continue
                 found_pdfs.add(full_url)
 
         new_pdfs = found_pdfs - known_pdfs
         for pdf in sorted(new_pdfs):
             filename = pdf.split("/")[-1]
             message = (
-                f"📄 NUOVO PDF - {name}\n\n"
+                f"📄 NUOVO PDF - {name}\n"
                 f"📎 File: {filename}\n"
                 f"🌐 Link: {pdf}\n"
                 f"🕒 Data: {now()}"
@@ -107,18 +107,17 @@ for site in sites:
         current_hash = page_hash(content)
         if url not in hashes:
             hashes[url] = current_hash
-            print(f"[{now()}] Inizializzato HTML: {url}")
+            print(f"[{now()}] Inizializzato HTML: {name} ({url})")
             continue
 
         if hashes[url] != current_hash:
-            # Se ci sono parole chiave, notifico solo se presenti
             notify = True
             if keywords:
                 notify = any(k in content.lower() for k in keywords)
 
             if notify:
                 message = (
-                    f"🔔 PAGINA HTML AGGIORNATA - {name}\n\n"
+                    f"🔔 PAGINA HTML AGGIORNATA - {name}\n"
                     f"🌐 URL: {url}\n"
                     f"🕒 Data: {now()}"
                 )
@@ -126,11 +125,11 @@ for site in sites:
                     bot.send_message(chat_id=CHAT_ID, text=message)
                 except Exception as e:
                     print(f"[{now()}] Errore Telegram: {e}")
-                print(f"[{now()}] Notifica HTML inviata: {url}")
+                print(f"[{now()}] Notifica HTML inviata: {name}")
 
             hashes[url] = current_hash
 
-# === SALVO STATO ===
+# === SALVA STATO ===
 with open(hashes_file, "w", encoding="utf-8") as f:
     json.dump(hashes, f, indent=2, ensure_ascii=False)
 
@@ -138,4 +137,3 @@ with open(pdfs_file, "w", encoding="utf-8") as f:
     json.dump(sorted(known_pdfs), f, indent=2, ensure_ascii=False)
 
 print(f"[{now()}] Controllo completato")
-
