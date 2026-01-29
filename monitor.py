@@ -1,36 +1,25 @@
 import requests
 import json
-import hashlib
 import os
+import hashlib
 from datetime import datetime
 from telegram import Bot
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
-# === CONFIG DA ENV (GitHub Secrets) ===
+# === CONFIG TELEGRAM ===
 TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 
 bot = Bot(token=TOKEN)
 
-# === FUNZIONE HASH CONTENUTO ===
-def page_hash(text: str) -> str:
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
-
-# === DATA E ORA FORMATTATE ===
-def now_str() -> str:
+# === FORMATTARE DATA/ORA ===
+def now():
     return datetime.now().strftime("%d/%m/%Y %H:%M")
 
-# === CARICO SITI ===
-with open("sites.json", "r", encoding="utf-8") as f:
-    sites = json.load(f)["sites"]
-
-# === CARICO HASH PRECEDENTI ===
-hashes = {}
-if os.path.exists("hashes.json"):
-    try:
-        with open("hashes.json", "r", encoding="utf-8") as f:
-            hashes = json.load(f)
-    except Exception:
-        hashes = {}
+# === FUNZIONE HASH HTML ===
+def page_hash(text: str) -> str:
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 # === HEADERS "UMANI" ===
 HEADERS = {
@@ -39,56 +28,107 @@ HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9",
-    "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Connection": "keep-alive",
+    "Accept-Language": "it-IT,it;q=0.9"
 }
+
+# === CARICO CONFIG SITI ===
+# Esempio sites.json:
+# {
+#   "sites": [
+#       {"name": "ADISUR Avvisi", "url": "https://www.adisurcampania.it/avvisi", "type": "pdf"},
+#       {"name": "Altro sito", "url": "https://www.altrosito.it/notizie", "type": "html"}
+#   ]
+# }
+with open("sites.json", "r", encoding="utf-8") as f:
+    sites = json.load(f)["sites"]
+
+# === CARICO HASH E PDF NOTI ===
+hashes_file = "hashes.json"
+pdfs_file = "pdfs.json"
+
+hashes = {}
+if os.path.exists(hashes_file):
+    try:
+        with open(hashes_file, "r", encoding="utf-8") as f:
+            hashes = json.load(f)
+    except:
+        hashes = {}
+
+known_pdfs = set()
+if os.path.exists(pdfs_file):
+    try:
+        with open(pdfs_file, "r", encoding="utf-8") as f:
+            known_pdfs = set(json.load(f))
+    except:
+        known_pdfs = set()
 
 # === CICLO PRINCIPALE ===
 for site in sites:
+    name = site.get("name", site.get("url"))
     url = site.get("url")
-    name = site.get("name", url)
+    stype = site.get("type", "html")  # html o pdf
 
     try:
-        response = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=30,
-            allow_redirects=True
-        )
-        response.raise_for_status()
-        content = response.text
+        r = requests.get(url, headers=HEADERS, timeout=30, allow_redirects=True)
+        r.raise_for_status()
+        content = r.text
     except Exception as e:
-        print(f"[{now_str()}] Errore su {url}: {e}")
+        print(f"[{now()}] Errore su {url}: {e}")
         continue
 
-    current_hash = page_hash(content)
+    # --- PDF ---
+    if stype.lower() == "pdf":
+        soup = BeautifulSoup(content, "html.parser")
+        found_pdfs = set()
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if ".pdf" in href.lower():
+                full_url = urljoin(url, href)
+                found_pdfs.add(full_url)
 
-    # Primo avvio
-    if url not in hashes:
-        hashes[url] = current_hash
-        print(f"[{now_str()}] Inizializzato: {url}")
-        continue
+        new_pdfs = found_pdfs - known_pdfs
+        for pdf in sorted(new_pdfs):
+            filename = pdf.split("/")[-1]
+            message = (
+                f"📄 NUOVO PDF - {name}\n\n"
+                f"📎 File: {filename}\n"
+                f"🌐 Link: {pdf}\n"
+                f"🕒 Data: {now()}"
+            )
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=message)
+            except Exception as e:
+                print(f"[{now()}] Errore Telegram: {e}")
+            print(f"[{now()}] Notifica PDF inviata: {filename}")
 
-    # Contenuto cambiato
-    if hashes[url] != current_hash:
-        message = (
-            f"🔔 AGGIORNAMENTO RILEVATO\n\n"
-            f"📌 Sito: {name}\n"
-            f"🌐 URL: {url}\n"
-            f"🕒 Data: {now_str()}"
-        )
+        known_pdfs.update(found_pdfs)
 
-        try:
-            bot.send_message(chat_id=CHAT_ID, text=message)
-            print(f"[{now_str()}] Notifica inviata per {url}")
-        except Exception as e:
-            print(f"[{now_str()}] Errore Telegram: {e}")
+    # --- HTML ---
+    elif stype.lower() == "html":
+        current_hash = page_hash(content)
+        if url not in hashes:
+            hashes[url] = current_hash
+            print(f"[{now()}] Inizializzato HTML: {url}")
+            continue
 
-        hashes[url] = current_hash
+        if hashes[url] != current_hash:
+            message = (
+                f"🔔 PAGINA HTML AGGIORNATA - {name}\n\n"
+                f"🌐 URL: {url}\n"
+                f"🕒 Data: {now()}"
+            )
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=message)
+            except Exception as e:
+                print(f"[{now()}] Errore Telegram: {e}")
+            print(f"[{now()}] Notifica HTML inviata: {url}")
+            hashes[url] = current_hash
 
-# === SALVO HASH ===
-with open("hashes.json", "w", encoding="utf-8") as f:
+# === SALVO HASH E PDF ===
+with open(hashes_file, "w", encoding="utf-8") as f:
     json.dump(hashes, f, indent=2, ensure_ascii=False)
 
-print(f"[{now_str()}] Controllo completato")
+with open(pdfs_file, "w", encoding="utf-8") as f:
+    json.dump(sorted(known_pdfs), f, indent=2, ensure_ascii=False)
+
+print(f"[{now()}] Controllo completato")
