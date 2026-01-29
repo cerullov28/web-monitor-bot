@@ -130,3 +130,52 @@ for site in sites:
 
         new_pdfs = found_pdfs - known_pdfs
         for pdf in sorted(new_pdfs):
+            filename = pdf.split("/")[-1]
+            message = (
+                f"📄 NUOVO PDF - {name}\n"
+                f"📎 File: {filename}\n"
+                f"🌐 Link: {pdf}\n"
+                f"🕒 Data: {now()}"
+            )
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=message)
+            except Exception as e:
+                print(f"[{now()}] Errore Telegram: {e}")
+            print(f"[{now()}] Notifica PDF inviata: {filename}")
+
+        known_pdfs.update(found_pdfs)
+
+    # --- HTML ---
+    elif stype == "html":
+        current_hash = page_hash(content)
+        if url not in hashes:
+            hashes[url] = current_hash
+            print(f"[{now()}] Inizializzato HTML: {name} ({url})")
+            continue
+
+        notify = True
+        if keywords:
+            notify = any(k in content.lower() for k in keywords)
+
+        if notify and hashes[url] != current_hash:
+            message = (
+                f"🔔 PAGINA HTML AGGIORNATA - {name}\n"
+                f"🌐 URL: {url}\n"
+                f"🕒 Data: {now()}"
+            )
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=message)
+            except Exception as e:
+                print(f"[{now()}] Errore Telegram: {e}")
+            print(f"[{now()}] Notifica HTML inviata: {url}")
+
+            hashes[url] = current_hash
+
+# === SALVO STATO ===
+with open(hashes_file, "w", encoding="utf-8") as f:
+    json.dump(hashes, f, indent=2, ensure_ascii=False)
+
+with open(pdfs_file, "w", encoding="utf-8") as f:
+    json.dump(sorted(known_pdfs), f, indent=2, ensure_ascii=False)
+
+print(f"[{now()}] Controllo completato")
