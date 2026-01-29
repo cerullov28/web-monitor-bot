@@ -66,33 +66,28 @@ for site in sites:
     stype = site.get("type", "html").lower()  # html o pdf
     keywords = [k.lower() for k in site.get("keywords", [])]
 
-    # --- RETRY + TIMEOUT LUNGO ---
-    for attempt in range(3):
+    # === ADISUR: usa sitemap XML ===
+    if "adisurcampania.it" in url:
+        sitemap_url = "https://www.adisurcampania.it/sitemap.xml"
         try:
-            r = requests.get(url, headers=HEADERS, timeout=90, allow_redirects=True)
+            r = requests.get(sitemap_url, headers=HEADERS, timeout=30)
             r.raise_for_status()
-            content = r.text
-            break  # successo
+            soup = BeautifulSoup(r.text, "xml")
+            found_links = set()
+            for loc in soup.find_all("loc"):
+                link = loc.text.strip()
+                # filtra solo link utili (PDF o notizie)
+                if link.lower().endswith(".pdf") or "/notizie" in link.lower():
+                    found_links.add(link)
         except Exception as e:
-            print(f"[{now()}] Tentativo {attempt+1} fallito per {url}: {e}")
-            time.sleep(5)
-    else:
-        print(f"[{now()}] Errore definitivo su {url}, passo al prossimo sito")
-        continue
+            print(f"[{now()}] Errore sitemap ADISUR: {e}")
+            continue
 
-    # --- SOLO PDF PER ADISUR /notizie ---
-    if "adisurcampania.it/notizie" in url:
-        soup = BeautifulSoup(content, "html.parser")
-        pdf_links = [
-            urljoin(url, a['href'])
-            for a in soup.find_all('a', href=True)
-            if a['href'].lower().endswith(".pdf")
-        ]
-        new_pdfs = set(pdf_links) - known_pdfs
+        new_pdfs = found_links - known_pdfs
         for pdf in sorted(new_pdfs):
             filename = pdf.split("/")[-1]
             message = (
-                f"📄 NUOVO PDF - {name}\n"
+                f"📄 NUOVO PDF / AVVISO - {name}\n"
                 f"📎 File: {filename}\n"
                 f"🌐 Link: {pdf}\n"
                 f"🕒 Data: {now()}"
@@ -101,12 +96,27 @@ for site in sites:
                 bot.send_message(chat_id=CHAT_ID, text=message)
             except Exception as e:
                 print(f"[{now()}] Errore Telegram: {e}")
-            print(f"[{now()}] Notifica PDF inviata: {filename}")
+            print(f"[{now()}] Notifica ADISUR inviata: {filename}")
 
-        known_pdfs.update(pdf_links)
-        continue  # salta normale controllo HTML
+        known_pdfs.update(found_links)
+        continue  # skip normale HTML
 
-    # --- PDF GENERICO ---
+    # === HTML GENERICO (UNICampania, ecc.) ===
+    # --- RETRY + TIMEOUT LUNGO ---
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=90, allow_redirects=True)
+            r.raise_for_status()
+            content = r.text
+            break
+        except Exception as e:
+            print(f"[{now()}] Tentativo {attempt+1} fallito per {url}: {e}")
+            time.sleep(5)
+    else:
+        print(f"[{now()}] Errore definitivo su {url}, passo al prossimo sito")
+        continue
+
+    # --- PDF ---
     if stype == "pdf":
         soup = BeautifulSoup(content, "html.parser")
         found_pdfs = set()
@@ -120,52 +130,3 @@ for site in sites:
 
         new_pdfs = found_pdfs - known_pdfs
         for pdf in sorted(new_pdfs):
-            filename = pdf.split("/")[-1]
-            message = (
-                f"📄 NUOVO PDF - {name}\n"
-                f"📎 File: {filename}\n"
-                f"🌐 Link: {pdf}\n"
-                f"🕒 Data: {now()}"
-            )
-            try:
-                bot.send_message(chat_id=CHAT_ID, text=message)
-            except Exception as e:
-                print(f"[{now()}] Errore Telegram: {e}")
-            print(f"[{now()}] Notifica PDF inviata: {filename}")
-
-        known_pdfs.update(found_pdfs)
-
-    # --- HTML ---
-    elif stype == "html":
-        current_hash = page_hash(content)
-        if url not in hashes:
-            hashes[url] = current_hash
-            print(f"[{now()}] Inizializzato HTML: {name} ({url})")
-            continue
-
-        notify = True
-        if keywords:
-            notify = any(k in content.lower() for k in keywords)
-
-        if notify and hashes[url] != current_hash:
-            message = (
-                f"🔔 PAGINA HTML AGGIORNATA - {name}\n"
-                f"🌐 URL: {url}\n"
-                f"🕒 Data: {now()}"
-            )
-            try:
-                bot.send_message(chat_id=CHAT_ID, text=message)
-            except Exception as e:
-                print(f"[{now()}] Errore Telegram: {e}")
-            print(f"[{now()}] Notifica HTML inviata: {url}")
-
-            hashes[url] = current_hash
-
-# === SALVO STATO ===
-with open(hashes_file, "w", encoding="utf-8") as f:
-    json.dump(hashes, f, indent=2, ensure_ascii=False)
-
-with open(pdfs_file, "w", encoding="utf-8") as f:
-    json.dump(sorted(known_pdfs), f, indent=2, ensure_ascii=False)
-
-print(f"[{now()}] Controllo completato")
