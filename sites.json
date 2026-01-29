@@ -1,12 +1,6 @@
 {
   "sites": [
-    {
-      "name": "Unicampania",
-      "url": "https://www.unicampania.it/index.php/studenti/avvisi"
-    },
-    {
-      "name": "Adisurc",
-      "url": "https://www.adisurcampania.it/avvisi"
-    }
+    {"name": "ADISUR Avvisi", "url": "https://www.adisurcampania.it/avvisi", "type": "pdf"},
+    {"name": "Altro sito", "url": "https://www.altrosito.it/notizie", "type": "html"}
   ]
 }
