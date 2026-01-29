@@ -1,6 +1,16 @@
 {
   "sites": [
-    {"name": "ADISUR Avvisi", "url": "https://www.adisurcampania.it/avvisi", "type": "pdf"},
-    {"name": "Altro sito", "url": "https://www.altrosito.it/notizie", "type": "html"}
+    {
+      "name": "ADISUR Avvisi",
+      "url": "https://www.adisurcampania.it/avvisi",
+      "type": "pdf",
+      "keywords": ["graduatoria","borsa","alloggio"]
+    },
+    {
+      "name": "Altro sito news",
+      "url": "https://www.altrosito.it/notizie",
+      "type": "html",
+      "keywords": ["bando","scadenza"]
+    }
   ]
 }
