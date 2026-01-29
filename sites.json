@@ -1,14 +1,14 @@
 {
   "sites": [
     {
-      "name": "ADISUR Avvisi",
-      "url": "https://www.adisurcampania.it/avvisi",
+      "name": "ADISURC Avvisi",
+      "url": "https://www.adisurcampania.it/notizie",
       "type": "pdf",
       "keywords": ["graduatoria","borsa","alloggio"]
     },
     {
-      "name": "Altro sito news",
-      "url": "https://www.altrosito.it/notizie",
+      "name": "UNICAMPANIA Avvisi",
+      "url": "https://www.unicampania.it/index.php/studenti/avvisi",
       "type": "html",
       "keywords": ["bando","scadenza"]
     }
